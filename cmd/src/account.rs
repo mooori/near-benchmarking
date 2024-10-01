@@ -4,7 +4,7 @@ use clap::Args;
 use near_crypto::{InMemorySigner, KeyType, SecretKey};
 use near_jsonrpc_client::JsonRpcClient;
 use near_ops::{
-    account::new_create_subaccount_actions,
+    account::{new_create_subaccount_actions, Account},
     rpc::{get_block, new_request},
 };
 use near_primitives::{
@@ -30,6 +30,9 @@ pub struct CreateSubAccountsArgs {
     /// Amount to deposit with each sub-account.
     #[arg(long)]
     pub deposit: u128,
+    /// Directory where created user account data (incl. key and nonce) is stored.
+    #[arg(long)]
+    pub user_data_dir: PathBuf,
 }
 
 pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result<()> {
@@ -44,7 +47,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
         .header
         .hash;
 
-    let mut sub_account_keys: Vec<SecretKey> =
+    let mut sub_accounts: Vec<Account> =
         Vec::with_capacity(args.num_sub_accounts.try_into().unwrap());
     let mut join_set = JoinSet::new();
 
@@ -52,12 +55,12 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
 
     for i in 0..args.num_sub_accounts {
         let sub_account_key = SecretKey::from_random(KeyType::ED25519);
-        let sub_account_id: AccountId = format!("user_{i}_f.{}", signer.account_id).parse()?;
+        let sub_account_id: AccountId = format!("user_{i}_j.{}", signer.account_id).parse()?;
         let tx = Transaction::V0(TransactionV0 {
             signer_id: signer.account_id.clone(),
             public_key: signer.public_key().clone(),
             nonce: args.nonce + u64::from(i),
-            receiver_id: sub_account_id,
+            receiver_id: sub_account_id.clone(),
             block_hash: latest_block_hash.clone(),
             actions: new_create_subaccount_actions(
                 sub_account_key.public_key().clone(),
@@ -73,7 +76,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
         join_set.spawn(async move { client.call(request).await });
         tokio::time::sleep(Duration::from_millis(5)).await;
 
-        sub_account_keys.push(sub_account_key);
+        sub_accounts.push(Account::new(sub_account_id, sub_account_key, 0));
     }
 
     while let Some(res) = join_set.join_next().await {
@@ -101,6 +104,10 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
                 ExecutionStatusView::SuccessReceiptId(_) => {}
             }
         }
+    }
+
+    for account in sub_accounts {
+        account.write_to_dir(&args.user_data_dir)?;
     }
 
     Ok(())

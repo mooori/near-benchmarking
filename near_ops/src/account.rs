@@ -1,9 +1,16 @@
+use std::{
+    fs::{self, File},
+    path::Path,
+};
+
 use clap::Args;
-use near_crypto::PublicKey;
+use near_crypto::{PublicKey, SecretKey};
 use near_primitives::{
     account::{AccessKey, AccessKeyPermission},
     action::{Action, AddKeyAction, CreateAccountAction, TransferAction},
+    types::AccountId,
 };
+use serde::{Deserialize, Serialize};
 
 #[derive(Args, Debug)]
 pub struct CreateAccountArgs {
@@ -26,6 +33,33 @@ pub fn new_create_subaccount_actions(public_key: PublicKey, deposit: u128) -> Ve
     ]
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Account {
+    id: AccountId,
+    public_key: PublicKey,
+    secret_key: SecretKey,
+    // New transaction must have a nonce bigger than this.
+    nonce: u64,
+}
+
+impl Account {
+    pub fn new(id: AccountId, secret_key: SecretKey, nonce: u64) -> Self {
+        Self {
+            id,
+            public_key: secret_key.public_key(),
+            secret_key,
+            nonce,
+        }
+    }
+
+    pub fn write_to_dir(&self, dir: &Path) -> anyhow::Result<()> {
+        let json = serde_json::to_string(self)?;
+        let file_name = dir.join(self.id.to_string());
+        fs::write(file_name, json)?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -44,8 +78,7 @@ mod tests {
 
     // TODO make these constants parameters
     const RPC_ADDR: &str = "http://localhost:3030";
-    const VALIDATOR_KEY_PATH: &str =
-        "/home/mori/opensource/near-bmws/.near-sandbox-home/validator_key.json";
+    const VALIDATOR_KEY_PATH: &str = ".near-sandbox-home/validator_key.json";
 
     #[tokio::test]
     async fn test_create_account() -> anyhow::Result<()> {
