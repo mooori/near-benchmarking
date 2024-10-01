@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+
+members = [
+  "cmd",
+  "near_ops"
+]
+
+exclude = [
+  "contracts/*"
+]
+
+[workspace.dependencies]
+anyhow = "1.0.89"
+clap = { version = "4.5.17", features = ["derive"] }
+near-jsonrpc-client = "0.13.0"
+tokio = { version = "1.40.0", features = ["full"] }
+serde_json = "1.0"
+
+# TODO use 0.14, seems to lead to compilation error
+near-workspaces = "0.13.0"
+# For compatibility with 0.13 workspaces using old versions of the following:
+near-crypto = "0.25"
+near-primitives = "0.25"
+
+near_ops = { path = "near_ops" }
