@@ -5,12 +5,11 @@ use near_crypto::{InMemorySigner, KeyType, SecretKey};
 use near_jsonrpc_client::JsonRpcClient;
 use near_ops::{
     account::{new_create_subaccount_actions, Account},
-    rpc::{get_block, new_request},
+    rpc::{assert_transaction_and_receipts_success, get_block, new_request},
 };
 use near_primitives::{
     transaction::{Transaction, TransactionV0},
     types::{AccountId, BlockReference, Finality},
-    views::{ExecutionStatusView, FinalExecutionStatus, TxExecutionStatus},
 };
 use tokio::task::JoinSet;
 
@@ -22,6 +21,7 @@ pub struct CreateSubAccountsArgs {
     #[arg(long)]
     pub signer_key_path: PathBuf,
     /// Starting nonce > current_nonce to send transactions to create sub accounts.
+    // TODO remove this field and get nonce from rpc
     #[arg(long, default_value_t = 1)]
     pub nonce: u64,
     /// Number of sub accounts to create.
@@ -55,7 +55,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
 
     for i in 0..args.num_sub_accounts {
         let sub_account_key = SecretKey::from_random(KeyType::ED25519);
-        let sub_account_id: AccountId = format!("user_{i}_j.{}", signer.account_id).parse()?;
+        let sub_account_id: AccountId = format!("user_{i}_k.{}", signer.account_id).parse()?;
         let tx = Transaction::V0(TransactionV0 {
             signer_id: signer.account_id.clone(),
             public_key: signer.public_key().clone(),
@@ -82,28 +82,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
     while let Some(res) = join_set.join_next().await {
         let response = res.expect("join should succeed");
         let rpc_response = response.expect("rpc request should succeed");
-        match rpc_response.final_execution_status {
-            TxExecutionStatus::None => panic!("got TxExecutionStatus::None"),
-            _ => {
-                // TODO handle the other variants properly.
-                // For first iteration any of the other variants is fine.
-            }
-        }
-
-        let outcome = rpc_response
-            .final_execution_outcome
-            .expect("there should be an outcome")
-            .into_outcome();
-
-        matches!(outcome.status, FinalExecutionStatus::SuccessValue { .. });
-        for receipt_outcome in outcome.receipts_outcome.iter() {
-            match &receipt_outcome.outcome.status {
-                ExecutionStatusView::Unknown => panic!("receipt should have outcome"),
-                ExecutionStatusView::Failure(err) => panic!("receipt failed: {}", err),
-                ExecutionStatusView::SuccessValue(_) => {}
-                ExecutionStatusView::SuccessReceiptId(_) => {}
-            }
-        }
+        assert_transaction_and_receipts_success(&rpc_response);
     }
 
     for account in sub_accounts {

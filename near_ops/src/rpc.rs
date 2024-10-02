@@ -1,12 +1,14 @@
 use near_crypto::{InMemorySigner, Signer};
 use near_jsonrpc_client::{
-    methods::{block::RpcBlockRequest, send_tx::RpcSendTransactionRequest},
+    methods::{
+        block::RpcBlockRequest, send_tx::RpcSendTransactionRequest, tx::RpcTransactionResponse,
+    },
     JsonRpcClient,
 };
 use near_primitives::{
     transaction::Transaction,
     types::{BlockReference, Finality},
-    views::{BlockView, TxExecutionStatus},
+    views::{BlockView, ExecutionStatusView, FinalExecutionStatus, TxExecutionStatus},
 };
 
 pub fn new_request(transaction: Transaction, signer: InMemorySigner) -> RpcSendTransactionRequest {
@@ -29,6 +31,36 @@ pub async fn get_block(
     };
     let block_view = client.call(request).await?;
     Ok(block_view)
+}
+
+/// Asserts a transaction and all its receipts succeeded.
+pub fn assert_transaction_and_receipts_success(response: &RpcTransactionResponse) {
+    match response.final_execution_status {
+        TxExecutionStatus::None
+        | TxExecutionStatus::Included
+        | TxExecutionStatus::IncludedFinal => panic!(
+            "Transaction should have been executed. Instead status is: {:?}",
+            response.final_execution_status
+        ),
+        TxExecutionStatus::ExecutedOptimistic
+        | TxExecutionStatus::Executed
+        | TxExecutionStatus::Final => {}
+    }
+
+    let outcome = response
+        .final_execution_outcome
+        .clone()
+        .expect("there should be an outcome")
+        .into_outcome();
+    matches!(outcome.status, FinalExecutionStatus::SuccessValue { .. });
+    for receipt_outcome in outcome.receipts_outcome.iter() {
+        match &receipt_outcome.outcome.status {
+            ExecutionStatusView::Unknown => panic!("receipt should have outcome"),
+            ExecutionStatusView::Failure(err) => panic!("receipt failed: {}", err),
+            ExecutionStatusView::SuccessValue(_) => {}
+            ExecutionStatusView::SuccessReceiptId(_) => {}
+        }
+    }
 }
 
 #[cfg(test)]
