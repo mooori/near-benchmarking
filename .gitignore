@@ -1,5 +1,10 @@
 target/
 contracts/**/target
+
+neard
+neard-sandbox
 .near-sandbox-home/
 .near-localnet-home/
 
+user-data/
+contract-data/
