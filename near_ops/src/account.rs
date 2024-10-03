@@ -53,6 +53,12 @@ impl Account {
         }
     }
 
+    pub fn from_file(path: &Path) -> anyhow::Result<Account> {
+        let content = fs::read_to_string(path)?;
+        let account = serde_json::from_str(&content)?;
+        Ok(account)
+    }
+
     pub fn write_to_dir(&self, dir: &Path) -> anyhow::Result<()> {
         let json = serde_json::to_string(self)?;
         let mut file_name = self.id.to_string();
@@ -61,6 +67,31 @@ impl Account {
         fs::write(file_path, json)?;
         Ok(())
     }
+}
+
+/// Tries to deserialize all json files in `dir` as [`Account`].
+pub fn accounts_from_dir(dir: &Path) -> anyhow::Result<Vec<Account>> {
+    if !dir.is_dir() {
+        anyhow::bail!("{:?} is not a directory", dir);
+    }
+
+    let mut accounts = vec![];
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if !file_type.is_file() {
+            continue;
+        }
+        let path = entry.path();
+        let file_extension = path.extension();
+        if file_extension == None || file_extension.unwrap() != "json" {
+            continue;
+        }
+        let account = Account::from_file(&path)?;
+        accounts.push(account);
+    }
+
+    Ok(accounts)
 }
 
 #[cfg(test)]
