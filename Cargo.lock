@@ -498,6 +498,7 @@ dependencies = [
  "near-jsonrpc-client 0.13.0",
  "near-primitives",
  "near_ops",
+ "serde_json",
  "tokio",
 ]
 

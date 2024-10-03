@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use contract::{create_contract, CreateContractArgs};
+use contract::{call_contract, create_contract, CallContractArgs, CreateContractArgs};
 use near_ops::account::CreateAccountArgs;
 
 mod account;
@@ -23,6 +23,7 @@ enum Commands {
     CreateSubAccounts(CreateSubAccountsArgs),
     /// Creates a sub account of the signer and deploys a contract to it.
     CreateContract(CreateContractArgs),
+    CallContract(CallContractArgs),
 }
 
 #[tokio::main]
@@ -37,6 +38,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::CreateContract(args) => {
             create_contract(args).await?;
+        }
+        Commands::CallContract(args) => {
+            call_contract(args).await?;
         }
     }
     Ok(())
