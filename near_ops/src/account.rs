@@ -35,6 +35,7 @@ pub fn new_create_subaccount_actions(public_key: PublicKey, deposit: u128) -> Ve
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Account {
+    #[serde(rename = "account_id")]
     id: AccountId,
     public_key: PublicKey,
     secret_key: SecretKey,
@@ -54,8 +55,10 @@ impl Account {
 
     pub fn write_to_dir(&self, dir: &Path) -> anyhow::Result<()> {
         let json = serde_json::to_string(self)?;
-        let file_name = dir.join(self.id.to_string());
-        fs::write(file_name, json)?;
+        let mut file_name = self.id.to_string();
+        file_name.push_str(".json");
+        let file_path = dir.join(file_name);
+        fs::write(file_path, json)?;
         Ok(())
     }
 }
