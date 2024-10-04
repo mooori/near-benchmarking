@@ -1,14 +1,19 @@
-use near_crypto::{InMemorySigner, Signer};
+use near_crypto::{InMemorySigner, PublicKey, Signer};
 use near_jsonrpc_client::{
     methods::{
-        block::RpcBlockRequest, send_tx::RpcSendTransactionRequest, tx::RpcTransactionResponse,
+        block::RpcBlockRequest, query::RpcQueryRequest, send_tx::RpcSendTransactionRequest,
+        tx::RpcTransactionResponse,
     },
     JsonRpcClient,
 };
+use near_jsonrpc_primitives::types::query::QueryResponseKind;
 use near_primitives::{
     transaction::Transaction,
-    types::{BlockReference, Finality},
-    views::{BlockView, ExecutionStatusView, FinalExecutionStatus, TxExecutionStatus},
+    types::{AccountId, BlockReference, Finality},
+    views::{
+        AccessKeyView, BlockView, ExecutionStatusView, FinalExecutionStatus, QueryRequest,
+        TxExecutionStatus,
+    },
 };
 
 pub fn new_request(transaction: Transaction, signer: InMemorySigner) -> RpcSendTransactionRequest {
@@ -31,6 +36,25 @@ pub async fn get_block(
     };
     let block_view = client.call(request).await?;
     Ok(block_view)
+}
+
+pub async fn view_access_key(
+    client: &JsonRpcClient,
+    account_id: AccountId,
+    public_key: PublicKey,
+) -> anyhow::Result<AccessKeyView> {
+    let request = RpcQueryRequest {
+        block_reference: BlockReference::latest(),
+        request: QueryRequest::ViewAccessKey {
+            account_id,
+            public_key,
+        },
+    };
+    let response = client.call(request).await?;
+    match response.kind {
+        QueryResponseKind::AccessKey(access_key_view) => Ok(access_key_view),
+        _ => Err(anyhow::anyhow!("unexpected query response")),
+    }
 }
 
 /// Asserts a transaction and all its receipts succeeded.
