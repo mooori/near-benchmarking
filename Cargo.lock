@@ -1942,6 +1942,7 @@ dependencies = [
  "clap",
  "near-crypto",
  "near-jsonrpc-client 0.13.0",
+ "near-jsonrpc-primitives",
  "near-primitives",
  "near-workspaces",
  "serde",

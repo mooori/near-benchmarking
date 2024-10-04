@@ -33,7 +33,7 @@ pub fn new_create_subaccount_actions(public_key: PublicKey, deposit: u128) -> Ve
     ]
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Account {
     #[serde(rename = "account_id")]
     pub id: AccountId,

@@ -5,7 +5,7 @@ use near_crypto::{InMemorySigner, KeyType, SecretKey};
 use near_jsonrpc_client::JsonRpcClient;
 use near_ops::{
     account::{new_create_subaccount_actions, Account},
-    rpc::{assert_transaction_and_receipts_success, get_block, new_request},
+    rpc::{assert_transaction_and_receipts_success, get_block, new_request, view_access_key},
 };
 use near_primitives::{
     transaction::{Transaction, TransactionV0},
@@ -55,7 +55,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
 
     for i in 0..args.num_sub_accounts {
         let sub_account_key = SecretKey::from_random(KeyType::ED25519);
-        let sub_account_id: AccountId = format!("user_{i}_k.{}", signer.account_id).parse()?;
+        let sub_account_id: AccountId = format!("user_{i}_o.{}", signer.account_id).parse()?;
         let tx = Transaction::V0(TransactionV0 {
             signer_id: signer.account_id.clone(),
             public_key: signer.public_key().clone(),
@@ -85,7 +85,22 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
         assert_transaction_and_receipts_success(&rpc_response);
     }
 
-    for account in sub_accounts {
+    // Nonces of new access keys are set by nearcore: https://github.com/near/nearcore/pull/4064
+    // Query them from the rpc to write `Accounts` with valid nonces to disk.
+    // TODO use `JoinSet`, e.g. by storing accounts in map instead of vec.
+    let mut get_access_key_tasks = Vec::with_capacity(sub_accounts.len());
+    for account in sub_accounts.clone().into_iter() {
+        let client = client.clone();
+        get_access_key_tasks.push(tokio::spawn(async move {
+            view_access_key(&client, account.id.clone(), account.public_key.clone()).await
+        }))
+    }
+
+    for (i, task) in get_access_key_tasks.into_iter().enumerate() {
+        let response = task.await.expect("join should succeed");
+        let nonce = response?.nonce;
+        let account = sub_accounts.get_mut(i).unwrap();
+        account.nonce = nonce;
         account.write_to_dir(&args.user_data_dir)?;
     }
 
