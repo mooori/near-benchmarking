@@ -1,11 +1,13 @@
+use benchmark::{benchmark_native_transfers, BenchmarkNativeTransferArgs};
 use clap::{Parser, Subcommand};
 
-use contract::{call_contract, create_contract, CallContractArgs, CreateContractArgs};
 use near_ops::account::CreateAccountArgs;
 
 mod account;
 use account::{create_sub_accounts, CreateSubAccountsArgs};
+mod benchmark;
 mod contract;
+use contract::{call_contract, create_contract, CallContractArgs, CreateContractArgs};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -24,6 +26,7 @@ enum Commands {
     /// Creates a sub account of the signer and deploys a contract to it.
     CreateContract(CreateContractArgs),
     CallContract(CallContractArgs),
+    BenchmarkNativeTransfers(BenchmarkNativeTransferArgs),
 }
 
 #[tokio::main]
@@ -41,6 +44,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::CallContract(args) => {
             call_contract(args).await?;
+        }
+        Commands::BenchmarkNativeTransfers(args) => {
+            benchmark_native_transfers(args).await?;
         }
     }
     Ok(())

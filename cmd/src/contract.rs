@@ -5,7 +5,7 @@ use near_crypto::{InMemorySigner, KeyType, SecretKey, Signer};
 use near_jsonrpc_client::{methods::send_tx::RpcSendTransactionRequest, JsonRpcClient};
 use near_primitives::{
     transaction::SignedTransaction,
-    types::{AccountId, BlockReference, Finality, FunctionArgs},
+    types::{AccountId, BlockReference, Finality},
     views::TxExecutionStatus,
 };
 

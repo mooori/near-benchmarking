@@ -24,7 +24,7 @@ pub fn new_create_subaccount_actions(public_key: PublicKey, deposit: u128) -> Ve
         Action::CreateAccount(CreateAccountAction {}),
         Action::AddKey(Box::new(AddKeyAction {
             access_key: AccessKey {
-                nonce: 0,
+                nonce: 0, // This value will be ignored: https://github.com/near/nearcore/pull/4064
                 permission: AccessKeyPermission::FullAccess,
             },
             public_key,
@@ -36,11 +36,11 @@ pub fn new_create_subaccount_actions(public_key: PublicKey, deposit: u128) -> Ve
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Account {
     #[serde(rename = "account_id")]
-    id: AccountId,
-    public_key: PublicKey,
-    secret_key: SecretKey,
+    pub id: AccountId,
+    pub public_key: PublicKey,
+    pub secret_key: SecretKey,
     // New transaction must have a nonce bigger than this.
-    nonce: u64,
+    pub nonce: u64,
 }
 
 impl Account {
@@ -66,6 +66,11 @@ impl Account {
         let file_path = dir.join(file_name);
         fs::write(file_path, json)?;
         Ok(())
+    }
+
+    pub fn get_and_bump_nonce(&mut self) -> u64 {
+        self.nonce += 1;
+        self.nonce
     }
 }
 
