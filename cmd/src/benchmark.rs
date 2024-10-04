@@ -24,6 +24,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
     let mut accounts = accounts_from_dir(&args.user_data_dir)?;
     let sender = &accounts[idx_sender];
     let receiver = &accounts[1];
+    println!("sending {} -> {}", sender.id, receiver.id);
 
     let client = JsonRpcClient::connect(&args.rpc_url);
     // The block hash included in a transaction affects the duration for which it is valid.
@@ -34,7 +35,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
         .header
         .hash;
 
-    let tx_nonce = sender.nonce;
+    let tx_nonce = sender.nonce + 1;
     let transaction = SignedTransaction::send_money(
         tx_nonce,
         sender.id.clone(),
@@ -55,7 +56,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
     assert_transaction_and_receipts_success(&response);
 
     let sender = accounts.get_mut(idx_sender).unwrap();
-    sender.nonce = tx_nonce + 1;
+    sender.nonce = tx_nonce;
     sender.write_to_dir(&args.user_data_dir)?;
 
     Ok(())
