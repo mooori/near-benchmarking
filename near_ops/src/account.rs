@@ -4,7 +4,7 @@ use std::{
 };
 
 use clap::Args;
-use near_crypto::{PublicKey, SecretKey};
+use near_crypto::{InMemorySigner, PublicKey, SecretKey, Signer};
 use near_primitives::{
     account::{AccessKey, AccessKeyPermission},
     action::{Action, AddKeyAction, CreateAccountAction, TransferAction},
@@ -66,6 +66,13 @@ impl Account {
         let file_path = dir.join(file_name);
         fs::write(file_path, json)?;
         Ok(())
+    }
+
+    pub fn as_signer(&self) -> Signer {
+        Signer::from(InMemorySigner::from_secret_key(
+            self.id.clone(),
+            self.secret_key.clone(),
+        ))
     }
 
     pub fn get_and_bump_nonce(&mut self) -> u64 {
