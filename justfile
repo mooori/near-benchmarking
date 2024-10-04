@@ -3,27 +3,28 @@ near_sandbox_home := ".near-sandbox-home/"
 rpc_url := "http://localhost:3030"
 
 # `near-sandbox` binary can be downloaded or built by running `make sandbox` in `nearcore`.
-# After this, you might want to increase test.near's balance in genesis.json.
 init_sandbox:
     ./neard-sandbox --home {{near_sandbox_home}} init
 
 run_sandbox:
     ./neard-sandbox --home {{near_sandbox_home}} run
 
+# After this, you might want to increase test.near's balance in genesis.json.
+# max amount before overflow: 1000000000000000000000000000000000
 init_localnet:
     ./neard --home {{near_localnet_home}} init --chain-id localnet
 
 run_localnet:
     ./neard --home {{near_localnet_home}} run
 
-# Deposit should cover at least 1000 transfers of 1.
+# Deposit should cover at least 10 transfers of 1.
 csa:
     cargo run -p cmd -- create-sub-accounts \
         --rpc-url "http://localhost:3030" \
         --signer-key-path {{near_localnet_home}}/validator_key.json \
-        --nonce 2022 \
-        --num-sub-accounts 5 \
-        --deposit 55306060187500000001000 \
+        --nonce 2033 \
+        --num-sub-accounts 500 \
+        --deposit 953060601875000000010000 \
         --user-data-dir user-data
 
 ccreate:
@@ -52,7 +53,10 @@ ccall receiver_id:
 bmnf:
     cargo run -p cmd -- benchmark-native-transfers \
         --rpc-url "http://localhost:3030" \
-        --user-data-dir user-data/
+        --user-data-dir user-data/ \
+        --num-transfers 5000 \
+        --interval-duration-ms 2 \
+        --amount 1
 
 view_account id:
     http post {{rpc_url}} jsonrpc=2.0 id=dontcare method=query \
