@@ -19,16 +19,16 @@ run_localnet:
 
 # Deposit should cover at least 10 transfers of 1.
 csa:
-    cargo run -p cmd -- create-sub-accounts \
+    cargo run -p cmd --release -- create-sub-accounts \
         --rpc-url "http://localhost:3030" \
         --signer-key-path {{near_localnet_home}}/validator_key.json \
-        --nonce 2033 \
+        --nonce 4000 \
         --num-sub-accounts 500 \
         --deposit 953060601875000000010000 \
         --user-data-dir user-data
 
 ccreate:
-    cargo run -p cmd -- create-contract \
+    cargo run -p cmd --release -- create-contract \
         --rpc-url "http://localhost:3030" \
         --signer-key-path {{near_localnet_home}}/validator_key.json \
         --nonce 1772 \
@@ -40,7 +40,7 @@ ccreate:
 # Avoid attaching excessive gas.
 # --args '{"owner_id": "{{receiver_id}}", "total_supply": "1000000000000000", "metadata": { "spec": "ft-1.0.0", "name": "Example Token Name", "symbol": "EXLT", "decimals": 8 }}' \
 ccall receiver_id:
-    cargo run -p cmd -- call-contract \
+    cargo run -p cmd --release -- call-contract \
         --rpc-url "http://localhost:3030" \
         --signer-key-path contract-data/{{receiver_id}}.json \
         --nonce 6737000006 \
@@ -51,11 +51,11 @@ ccall receiver_id:
         --deposit 0
 
 bmnf:
-    cargo run -p cmd -- benchmark-native-transfers \
+    cargo run -p cmd --release -- benchmark-native-transfers \
         --rpc-url "http://localhost:3030" \
         --user-data-dir user-data/ \
         --num-transfers 5000 \
-        --interval-duration-ms 2 \
+        --interval-duration-ms 1 \
         --amount 1
 
 view_account id:
