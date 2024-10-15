@@ -5,12 +5,13 @@ use clap::Args;
 use near_jsonrpc_client::methods::send_tx::RpcSendTransactionRequest;
 use near_jsonrpc_client::JsonRpcClient;
 use near_ops::account::accounts_from_dir;
-use near_ops::rpc::{assert_transaction_and_receipts_success, get_block};
+use near_ops::rpc::get_block;
+use near_ops::rpc_response_handler::RpcResponseHandler;
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::{BlockReference, Finality};
 use near_primitives::views::TxExecutionStatus;
 use rand::distributions::{Distribution, Uniform};
-use tokio::task::JoinSet;
+use tokio::sync::mpsc;
 use tokio::time;
 
 #[derive(Args, Debug)]
@@ -34,7 +35,6 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
     let mut accounts = accounts_from_dir(&args.user_data_dir)?;
     assert!(accounts.len() >= 2);
 
-    let mut join_set = JoinSet::new();
     let mut interval = time::interval(Duration::from_millis(args.interval_duration_ms));
     let timer = Instant::now();
 
@@ -50,7 +50,16 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
         .header
         .hash;
 
-    // TODO create a channel to send tx responses into.
+    // Below transaction request are made sequentially. Request i must be sent into the channel
+    // before making request i+1. Hence buffer size limits the number of outstanding requests.
+    // TODO find reasonable buffer size.
+    let (channel_tx, channel_rx) = mpsc::channel(5000);
+
+    let num_expected_responses = args.num_transfers;
+    let response_handler_task = tokio::task::spawn(async move {
+        let mut rpc_response_handler = RpcResponseHandler::new(channel_rx, num_expected_responses);
+        rpc_response_handler.handle_all_responses().await;
+    });
 
     for i in 0..args.num_transfers {
         let idx_sender = usize::try_from(i % u64::try_from(accounts.len()).unwrap()).unwrap();
@@ -85,7 +94,11 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
 
         interval.tick().await;
         let client = client.clone();
-        join_set.spawn(async move { client.call(request).await });
+        let channel_tx = channel_tx.clone();
+        tokio::spawn(async move {
+            let res = client.call(request).await;
+            channel_tx.send(res).await.unwrap();
+        });
         if i % 1000 == 0 {
             println!("num txs sent: {}", i);
         }
@@ -104,16 +117,10 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
         account.write_to_dir(&args.user_data_dir)?;
     }
 
-    let mut num_joined = 0;
-    while let Some(res) = join_set.join_next().await {
-        let response = res.expect("join should succeed");
-        let rpc_response = response.expect("rpc request should succeed");
-        assert_transaction_and_receipts_success(&rpc_response);
-        num_joined += 1;
-        if num_joined % 1000 == 0 {
-            println!("num txs executed optimistically: {num_joined}");
-        }
-    }
+    // Ensure all rpc responses are handled.
+    response_handler_task
+        .await
+        .expect("response handler tasks should succeed");
 
     println!(
         "Optimistically executed {} txs in {:.2} seconds",
