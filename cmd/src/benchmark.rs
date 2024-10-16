@@ -24,10 +24,10 @@ pub struct BenchmarkNativeTransferArgs {
     pub user_data_dir: PathBuf,
     #[arg(long)]
     pub num_transfers: u64,
-    /// After each tick (in milliseconds) a transaction is sent. If the hardware cannot keep up
-    /// with that, transactions are sent at a slower rate.
+    /// After each tick (in microseconds) a transaction is sent. If the hardware cannot keep up with
+    /// that, transactions are sent at a slower rate.
     #[arg(long)]
-    pub interval_duration_ms: u64,
+    pub interval_duration_micros: u64,
     #[arg(long)]
     pub amount: u128,
 }
@@ -36,7 +36,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
     let mut accounts = accounts_from_dir(&args.user_data_dir)?;
     assert!(accounts.len() >= 2);
 
-    let mut interval = time::interval(Duration::from_millis(args.interval_duration_ms));
+    let mut interval = time::interval(Duration::from_micros(args.interval_duration_micros));
     let timer = Instant::now();
 
     let between = Uniform::from(0..accounts.len());
