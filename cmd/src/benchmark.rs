@@ -51,8 +51,8 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
         .header
         .hash;
 
-    // Below transaction request are made sequentially. Request i must be sent into the channel
-    // before making request i+1. Hence buffer size limits the number of outstanding requests.
+    // Before a request is made, a permit to send into the channel is awaited. Hence buffer size
+    // limits the number of outstanding requests. This helps to avoid congestion.
     // TODO find reasonable buffer size.
     let (channel_tx, channel_rx) = mpsc::channel(5000);
 
@@ -97,8 +97,11 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
         let client = client.clone();
         let channel_tx = channel_tx.clone();
         tokio::spawn(async move {
+            // Await permit before sending the request to make channel buffer size a limit for the
+            // number of outstanding requests.
+            let permit = channel_tx.reserve().await.unwrap();
             let res = client.call(request).await;
-            channel_tx.send(res).await.unwrap();
+            permit.send(res);
         });
         if i > 0 && i % 1000 == 0 {
             info!("num txs sent: {}", i);
