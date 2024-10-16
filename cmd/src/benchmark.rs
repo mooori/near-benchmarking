@@ -126,11 +126,5 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
         .await
         .expect("response handler tasks should succeed");
 
-    info!(
-        "Optimistically executed {} txs in {:.2} seconds",
-        args.num_transfers,
-        timer.elapsed().as_secs_f64()
-    );
-
     Ok(())
 }

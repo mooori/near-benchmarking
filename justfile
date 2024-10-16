@@ -22,7 +22,7 @@ csa:
     cargo run -p cmd --release -- create-sub-accounts \
         --rpc-url "http://localhost:3030" \
         --signer-key-path {{near_localnet_home}}/validator_key.json \
-        --nonce 4000 \
+        --nonce 9000 \
         --num-sub-accounts 500 \
         --deposit 953060601875000000010000 \
         --user-data-dir user-data
@@ -50,12 +50,15 @@ ccall receiver_id:
         --gas 100000000000000 \
         --deposit 0
 
+# Seems like current max is ~2400 native transfers per second.
+# Set a `interval-duration-micros` to roughly sent transactions at that rate.
 bmnf:
+    RUST_LOG=info \
     cargo run -p cmd --release -- benchmark-native-transfers \
         --rpc-url "http://localhost:3030" \
         --user-data-dir user-data/ \
-        --num-transfers 5000 \
-        --interval-duration-ms 1 \
+        --num-transfers 10000 \
+        --interval-duration-micros 400 \
         --amount 1
 
 view_account id:

@@ -33,8 +33,11 @@ enum Commands {
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
     let cli = Cli::parse();
+
+    // TODO increase file descriptor limit, if required.
+
     match &cli.command {
-        Commands::CreateAccount(CreateAccountArgs { account_id }) => {
+        Commands::CreateAccount(CreateAccountArgs { .. }) => {
             unimplemented!();
         }
         Commands::CreateSubAccounts(args) => {
