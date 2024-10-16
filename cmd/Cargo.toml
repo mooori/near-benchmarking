@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+env_logger.workspace = true
+log.workspace = true
 near-crypto.workspace = true
 near-jsonrpc-client.workspace = true
 near-primitives.workspace = true

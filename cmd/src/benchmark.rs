@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use clap::Args;
+use log::info;
 use near_jsonrpc_client::methods::send_tx::RpcSendTransactionRequest;
 use near_jsonrpc_client::JsonRpcClient;
 use near_ops::account::accounts_from_dir;
@@ -99,15 +100,15 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
             let res = client.call(request).await;
             channel_tx.send(res).await.unwrap();
         });
-        if i % 1000 == 0 {
-            println!("num txs sent: {}", i);
+        if i > 0 && i % 1000 == 0 {
+            info!("num txs sent: {}", i);
         }
 
         let sender = accounts.get_mut(idx_sender).unwrap();
         sender.nonce += 1;
     }
 
-    println!(
+    info!(
         "Sent {} txs in {:.2} seconds",
         args.num_transfers,
         timer.elapsed().as_secs_f64()
@@ -122,7 +123,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
         .await
         .expect("response handler tasks should succeed");
 
-    println!(
+    info!(
         "Optimistically executed {} txs in {:.2} seconds",
         args.num_transfers,
         timer.elapsed().as_secs_f64()

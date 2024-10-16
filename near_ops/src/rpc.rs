@@ -98,7 +98,6 @@ mod tests {
         let block_ref = BlockReference::Finality(Finality::Final);
         let client = connect_rpc_client();
         let block_view = get_block(&client, block_ref).await?;
-        println!("block_hash: {}", block_view.header.hash);
         Ok(())
     }
 }

@@ -31,10 +31,11 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    env_logger::init();
     let cli = Cli::parse();
     match &cli.command {
         Commands::CreateAccount(CreateAccountArgs { account_id }) => {
-            println!("{account_id}")
+            unimplemented!();
         }
         Commands::CreateSubAccounts(args) => {
             create_sub_accounts(args).await?;

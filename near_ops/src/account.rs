@@ -174,7 +174,6 @@ mod tests {
                 Action::Transfer(TransferAction { deposit: 42 }),
             ],
         });
-        println!("tx_hash: {}", tx.get_hash_and_size().0);
 
         let request = RpcSendTransactionRequest {
             signed_transaction: tx.sign(&Signer::InMemory(signer)),

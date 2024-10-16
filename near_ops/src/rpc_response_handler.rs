@@ -1,3 +1,4 @@
+use log::warn;
 use near_jsonrpc_client::{
     errors::JsonRpcError,
     methods::tx::{RpcTransactionError, RpcTransactionResponse},
@@ -22,11 +23,14 @@ impl RpcResponseHandler {
     }
 
     pub async fn handle_all_responses(&mut self) {
-        for _ in 0..self.num_expected_responses {
+        for i in 0..self.num_expected_responses {
             let response = match self.receiver.recv().await {
                 Some(res) => res,
                 None => {
-                    println!("Handling fewer responses than expected");
+                    warn!(
+                        "Expectet {} responses but channel closed after {i}",
+                        self.num_expected_responses
+                    );
                     break;
                 }
             };
