@@ -25,7 +25,7 @@ pub struct BenchmarkNativeTransferArgs {
     #[arg(long)]
     pub num_transfers: u64,
     /// After each tick (in microseconds) a transaction is sent. If the hardware cannot keep up with
-    /// that, transactions are sent at a slower rate.
+    /// that or if the NEAR node is congested, transactions are sent at a slower rate.
     #[arg(long)]
     pub interval_duration_micros: u64,
     #[arg(long)]
