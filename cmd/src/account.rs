@@ -91,13 +91,12 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
 
         interval.tick().await;
         let client = client.clone();
-        let channel_tx = channel_tx.clone();
+        // Await permit before sending the request to make channel buffer size a limit for the
+        // number of outstanding requests.
+        let permit = channel_tx.clone().reserve_owned().await.unwrap();
         // The spawned task starts running immediately. Assume with interval between spanning them
         // this leads to transaction nonces hitting the node in order.
         tokio::spawn(async move {
-            // Await permit before sending the request to make channel buffer size a limit for the
-            // number of outstanding requests.
-            let permit = channel_tx.reserve().await.unwrap();
             let res = client.call(request).await;
             permit.send(res);
         });
