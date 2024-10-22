@@ -1,17 +1,21 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use clap::Args;
+use log::info;
 use near_crypto::{InMemorySigner, KeyType, SecretKey};
 use near_jsonrpc_client::JsonRpcClient;
+use near_ops::rpc_response_handler::RpcResponseHandler;
 use near_ops::{
     account::{new_create_subaccount_actions, Account},
-    rpc::{assert_transaction_and_receipts_success, get_block, new_request, view_access_key},
+    rpc::{get_block, new_request, view_access_key},
 };
 use near_primitives::{
     transaction::{Transaction, TransactionV0},
     types::{AccountId, BlockReference, Finality},
 };
-use tokio::task::JoinSet;
+use tokio::sync::mpsc;
+use tokio::time;
 
 #[derive(Args, Debug)]
 pub struct CreateSubAccountsArgs {
@@ -26,10 +30,14 @@ pub struct CreateSubAccountsArgs {
     pub nonce: u64,
     /// Number of sub accounts to create.
     #[arg(long)]
-    pub num_sub_accounts: u32,
+    pub num_sub_accounts: u64,
     /// Amount to deposit with each sub-account.
     #[arg(long)]
     pub deposit: u128,
+    /// After each tick (in microseconds) a transaction is sent. If the hardware cannot keep up with
+    /// that or if the NEAR node is congested, transactions are sent at a slower rate.
+    #[arg(long)]
+    pub interval_duration_micros: u64,
     /// Directory where created user account data (incl. key and nonce) is stored.
     #[arg(long)]
     pub user_data_dir: PathBuf,
@@ -39,6 +47,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
     let signer = InMemorySigner::from_file(&args.signer_key_path)?;
 
     let client = JsonRpcClient::connect(&args.rpc_url);
+    info!("{:#?}", client.headers());
     // The block hash included in a transaction affects the duration for which it is valid.
     // Benchmarks are expected to run ~30-60 minutes. Hence using any recent hash should be
     // sufficient to create valid transactions.
@@ -47,19 +56,30 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
         .header
         .hash;
 
+    let mut interval = time::interval(Duration::from_micros(args.interval_duration_micros));
+    let timer = Instant::now();
+
     let mut sub_accounts: Vec<Account> =
         Vec::with_capacity(args.num_sub_accounts.try_into().unwrap());
-    let mut join_set = JoinSet::new();
 
-    // TODO create a channel to send tx responses into
+    // Before a request is made, a permit to send into the channel is awaited. Hence buffer size
+    // limits the number of outstanding requests. This helps to avoid congestion.
+    // TODO find reasonable buffer size.
+    let (channel_tx, channel_rx) = mpsc::channel(1200);
+
+    let num_expected_responses = args.num_sub_accounts;
+    let response_handler_task = tokio::task::spawn(async move {
+        let mut rpc_response_handler = RpcResponseHandler::new(channel_rx, num_expected_responses);
+        rpc_response_handler.handle_all_responses().await;
+    });
 
     for i in 0..args.num_sub_accounts {
         let sub_account_key = SecretKey::from_random(KeyType::ED25519);
-        let sub_account_id: AccountId = format!("user_{i}.{}", signer.account_id).parse()?;
+        let sub_account_id: AccountId = format!("user_{i}_o.{}", signer.account_id).parse()?;
         let tx = Transaction::V0(TransactionV0 {
             signer_id: signer.account_id.clone(),
             public_key: signer.public_key().clone(),
-            nonce: args.nonce + u64::from(i),
+            nonce: args.nonce + i,
             receiver_id: sub_account_id.clone(),
             block_hash: latest_block_hash.clone(),
             actions: new_create_subaccount_actions(
@@ -69,21 +89,32 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
         });
         let request = new_request(tx, signer.clone());
 
+        interval.tick().await;
         let client = client.clone();
-        // The spawned task starts running immediately. Assume with timeout between spanning them
+        let channel_tx = channel_tx.clone();
+        // The spawned task starts running immediately. Assume with interval between spanning them
         // this leads to transaction nonces hitting the node in order.
-        // TODO use tokio interval
-        join_set.spawn(async move { client.call(request).await });
-        tokio::time::sleep(Duration::from_millis(5)).await;
+        tokio::spawn(async move {
+            // Await permit before sending the request to make channel buffer size a limit for the
+            // number of outstanding requests.
+            let permit = channel_tx.reserve().await.unwrap();
+            let res = client.call(request).await;
+            permit.send(res);
+        });
 
         sub_accounts.push(Account::new(sub_account_id, sub_account_key, 0));
     }
 
-    while let Some(res) = join_set.join_next().await {
-        let response = res.expect("join should succeed");
-        let rpc_response = response.expect("rpc request should succeed");
-        assert_transaction_and_receipts_success(&rpc_response);
-    }
+    info!(
+        "Sent {} txs in {:.2} seconds",
+        args.num_sub_accounts,
+        timer.elapsed().as_secs_f64()
+    );
+
+    // Ensure all rpc responses are handled.
+    response_handler_task
+        .await
+        .expect("response handler tasks should succeed");
 
     // Nonces of new access keys are set by nearcore: https://github.com/near/nearcore/pull/4064
     // Query them from the rpc to write `Accounts` with valid nonces to disk.
