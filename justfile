@@ -1,6 +1,6 @@
 near_localnet_home := ".near-localnet-home/"
 near_sandbox_home := ".near-sandbox-home/"
-rpc_url := "http://localhost:3030"
+rpc_url := "http://127.0.0.1:3030"
 
 # `near-sandbox` binary can be downloaded or built by running `make sandbox` in `nearcore`.
 init_sandbox:
@@ -9,8 +9,10 @@ init_sandbox:
 run_sandbox:
     ./neard-sandbox --home {{near_sandbox_home}} run
 
-# After this, you might want to increase test.near's balance in genesis.json.
-# max amount before overflow: 1000000000000000000000000000000000
+# After this, you might want to:
+# - enable memtries: `load_mem_tries_for_tracked_shards: true` in `config.json`
+# - increase test.near's balance in genesis.json.
+#   - max amount before overflow: 1000000000000000000000000000000000
 init_localnet:
     ./neard --home {{near_localnet_home}} init --chain-id localnet
 
@@ -19,12 +21,14 @@ run_localnet:
 
 # Deposit should cover at least 10 transfers of 1.
 csa:
+    RUST_LOG=info \
     cargo run -p cmd --release -- create-sub-accounts \
-        --rpc-url "http://localhost:3030" \
+        --rpc-url {{rpc_url}} \
         --signer-key-path {{near_localnet_home}}/validator_key.json \
-        --nonce 9000 \
-        --num-sub-accounts 500 \
+        --nonce 1 \
+        --num-sub-accounts 10000 \
         --deposit 953060601875000000010000 \
+        --interval-duration-micros 1500 \
         --user-data-dir user-data
 
 ccreate:
@@ -55,9 +59,9 @@ ccall receiver_id:
 bmnf:
     RUST_LOG=info \
     cargo run -p cmd --release -- benchmark-native-transfers \
-        --rpc-url "http://localhost:3030" \
+        --rpc-url {{rpc_url}} \
         --user-data-dir user-data/ \
-        --num-transfers 10000 \
+        --num-transfers 20000 \
         --interval-duration-micros 400 \
         --amount 1
 
