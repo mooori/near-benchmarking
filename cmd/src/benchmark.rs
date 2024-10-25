@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use clap::Args;
@@ -6,10 +7,9 @@ use log::info;
 use near_jsonrpc_client::methods::send_tx::RpcSendTransactionRequest;
 use near_jsonrpc_client::JsonRpcClient;
 use near_ops::account::accounts_from_dir;
-use near_ops::rpc::get_block;
+use near_ops::block_service::BlockService;
 use near_ops::rpc_response_handler::RpcResponseHandler;
 use near_primitives::transaction::SignedTransaction;
-use near_primitives::types::{BlockReference, Finality};
 use near_primitives::views::TxExecutionStatus;
 use rand::distributions::{Distribution, Uniform};
 use tokio::sync::mpsc;
@@ -43,18 +43,13 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
     let mut rng = rand::thread_rng();
 
     let client = JsonRpcClient::connect(&args.rpc_url);
-    // The block hash included in a transaction affects the duration for which it is valid.
-    // Benchmarks are expected to run ~30-60 minutes. Hence using any recent hash should be
-    // sufficient to create valid transactions.
-    let latest_block_hash = get_block(&client, BlockReference::Finality(Finality::Final))
-        .await?
-        .header
-        .hash;
+    let block_service = Arc::new(BlockService::new(client.clone()).await);
+    block_service.clone().start().await;
 
     // Before a request is made, a permit to send into the channel is awaited. Hence buffer size
     // limits the number of outstanding requests. This helps to avoid congestion.
     // TODO find reasonable buffer size.
-    let (channel_tx, channel_rx) = mpsc::channel(5000);
+    let (channel_tx, channel_rx) = mpsc::channel(3500);
 
     let num_expected_responses = args.num_transfers;
     let response_handler_task = tokio::task::spawn(async move {
@@ -86,7 +81,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
             receiver.id.clone(),
             &sender.as_signer(),
             args.amount,
-            latest_block_hash,
+            block_service.get_block_hash(),
         );
         let request = RpcSendTransactionRequest {
             signed_transaction: transaction,
@@ -102,7 +97,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
             let res = client.call(request).await;
             permit.send(res);
         });
-        if i > 0 && i % 1000 == 0 {
+        if i > 0 && i % 10000 == 0 {
             info!("num txs sent: {}", i);
         }
 
