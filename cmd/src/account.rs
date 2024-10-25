@@ -1,18 +1,20 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use clap::Args;
 use log::info;
 use near_crypto::{InMemorySigner, KeyType, SecretKey};
 use near_jsonrpc_client::JsonRpcClient;
+use near_ops::block_service::BlockService;
 use near_ops::rpc_response_handler::RpcResponseHandler;
 use near_ops::{
     account::{new_create_subaccount_actions, Account},
-    rpc::{get_block, new_request, view_access_key},
+    rpc::{new_request, view_access_key},
 };
 use near_primitives::{
     transaction::{Transaction, TransactionV0},
-    types::{AccountId, BlockReference, Finality},
+    types::AccountId,
 };
 use tokio::sync::mpsc;
 use tokio::time;
@@ -47,14 +49,8 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
     let signer = InMemorySigner::from_file(&args.signer_key_path)?;
 
     let client = JsonRpcClient::connect(&args.rpc_url);
-    info!("{:#?}", client.headers());
-    // The block hash included in a transaction affects the duration for which it is valid.
-    // Benchmarks are expected to run ~30-60 minutes. Hence using any recent hash should be
-    // sufficient to create valid transactions.
-    let latest_block_hash = get_block(&client, BlockReference::Finality(Finality::Final))
-        .await?
-        .header
-        .hash;
+    let block_service = Arc::new(BlockService::new(client.clone()).await);
+    block_service.clone().start().await;
 
     let mut interval = time::interval(Duration::from_micros(args.interval_duration_micros));
     let timer = Instant::now();
@@ -75,13 +71,13 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
 
     for i in 0..args.num_sub_accounts {
         let sub_account_key = SecretKey::from_random(KeyType::ED25519);
-        let sub_account_id: AccountId = format!("user_{i}_o.{}", signer.account_id).parse()?;
+        let sub_account_id: AccountId = format!("user_{i}_a2.{}", signer.account_id).parse()?;
         let tx = Transaction::V0(TransactionV0 {
             signer_id: signer.account_id.clone(),
             public_key: signer.public_key().clone(),
             nonce: args.nonce + i,
             receiver_id: sub_account_id.clone(),
-            block_hash: latest_block_hash.clone(),
+            block_hash: block_service.get_block_hash(),
             actions: new_create_subaccount_actions(
                 sub_account_key.public_key().clone(),
                 args.deposit,
