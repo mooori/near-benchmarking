@@ -16,10 +16,14 @@ use near_primitives::{
     },
 };
 
-pub fn new_request(transaction: Transaction, signer: InMemorySigner) -> RpcSendTransactionRequest {
+pub fn new_request(
+    transaction: Transaction,
+    wait_until: TxExecutionStatus,
+    signer: InMemorySigner,
+) -> RpcSendTransactionRequest {
     RpcSendTransactionRequest {
         signed_transaction: transaction.sign(&Signer::from(signer)),
-        wait_until: TxExecutionStatus::ExecutedOptimistic,
+        wait_until,
     }
 }
 

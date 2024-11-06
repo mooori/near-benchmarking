@@ -51,9 +51,12 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
     // TODO find reasonable buffer size.
     let (channel_tx, channel_rx) = mpsc::channel(3500);
 
+    let wait_until = TxExecutionStatus::ExecutedOptimistic;
+    let wait_until_channel = wait_until.clone();
     let num_expected_responses = args.num_transfers;
     let response_handler_task = tokio::task::spawn(async move {
-        let mut rpc_response_handler = RpcResponseHandler::new(channel_rx, num_expected_responses);
+        let mut rpc_response_handler =
+            RpcResponseHandler::new(channel_rx, wait_until_channel, num_expected_responses);
         rpc_response_handler.handle_all_responses().await;
     });
 
@@ -85,7 +88,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
         );
         let request = RpcSendTransactionRequest {
             signed_transaction: transaction,
-            wait_until: TxExecutionStatus::ExecutedOptimistic,
+            wait_until: wait_until.clone(),
         };
 
         interval.tick().await;

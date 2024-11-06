@@ -5,6 +5,7 @@ use near_jsonrpc_client::{
     errors::JsonRpcError,
     methods::tx::{RpcTransactionError, RpcTransactionResponse},
 };
+use near_primitives::views::TxExecutionStatus;
 use tokio::sync::mpsc::Receiver;
 
 use crate::rpc::assert_transaction_and_receipts_success;
@@ -13,13 +14,20 @@ pub type RpcCallResult = Result<RpcTransactionResponse, JsonRpcError<RpcTransact
 
 pub struct RpcResponseHandler {
     receiver: Receiver<RpcCallResult>,
+    /// The `wait_until` value of the transactions whose responses are awaited.
+    wait_until: TxExecutionStatus,
     num_expected_responses: u64,
 }
 
 impl RpcResponseHandler {
-    pub fn new(receiver: Receiver<RpcCallResult>, num_expected_responses: u64) -> Self {
+    pub fn new(
+        receiver: Receiver<RpcCallResult>,
+        wait_until: TxExecutionStatus,
+        num_expected_responses: u64,
+    ) -> Self {
         Self {
             receiver,
+            wait_until,
             num_expected_responses,
         }
     }
