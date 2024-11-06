@@ -80,3 +80,9 @@ view_keys id:
             "finality": "final", \
             "account_id": "{{id}}" \
         }'
+
+view_protocol_config:
+    http post {{rpc_url}} jsonrpc=2.0 id=dontcare method=EXPERIMENTAL_protocol_config \
+      params:='{ \
+        "finality": "final" \
+      }'
