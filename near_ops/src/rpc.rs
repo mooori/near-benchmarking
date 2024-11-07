@@ -114,23 +114,18 @@ pub fn check_send_tx_response(
         warn_or_panic(&msg, response_check_severity);
     }
 
-    let outcome = response
-        .final_execution_outcome
-        .expect("response should have an outcome")
-        .into_outcome();
+    // Check the outcome, if applicable.
     match wait_until {
         TxExecutionStatus::None => {
-            check_outcome_status(
-                &outcome,
-                FinalExecutionStatus::NotStarted,
-                response_check_severity,
-            );
+            // The response to a transaction with `wait_until: None` contains no outcome.
+            // If that ever changes, the outcome must be checked, hence the assert.
+            assert!(response.final_execution_outcome.is_none());
         }
         TxExecutionStatus::Included => unimplemented!("not sending requests with this wait_until"),
         TxExecutionStatus::ExecutedOptimistic => {
             // For now, only sending transactions that expect an empty success value.
-            check_outcome_status(
-                &outcome,
+            check_outcome(
+                response,
                 FinalExecutionStatus::SuccessValue(vec![]),
                 response_check_severity,
             );
@@ -140,6 +135,25 @@ pub fn check_send_tx_response(
         }
         TxExecutionStatus::Executed => unimplemented!("not sending requests with this wait_until"),
         TxExecutionStatus::Final => unimplemented!("not sending requests with this wait_until"),
+    }
+}
+
+/// For now not inspecting success values or receipt ids.
+fn check_outcome(
+    response: RpcTransactionResponse,
+    expected_status: FinalExecutionStatus,
+    response_check_severity: ResponseCheckSeverity,
+) {
+    let outcome = response
+        .final_execution_outcome
+        .expect("response should have an outcome")
+        .into_outcome();
+    if outcome.status != expected_status {
+        let msg = format!(
+            "got outcome.status {:#?}, expected {:#?}",
+            outcome.status, expected_status
+        );
+        warn_or_panic(&msg, response_check_severity);
     }
 
     for receipt_outcome in outcome.receipts_outcome.iter() {
@@ -153,20 +167,6 @@ pub fn check_send_tx_response(
             ExecutionStatusView::SuccessValue(_) => {}
             ExecutionStatusView::SuccessReceiptId(_) => {}
         }
-    }
-}
-
-fn check_outcome_status(
-    outcome: &FinalExecutionOutcomeView,
-    expected_status: FinalExecutionStatus,
-    response_check_severity: ResponseCheckSeverity,
-) {
-    if outcome.status != expected_status {
-        let msg = format!(
-            "got outcome.status {:#?}, expected {:#?}",
-            outcome.status, expected_status
-        );
-        warn_or_panic(&msg, response_check_severity);
     }
 }
 
