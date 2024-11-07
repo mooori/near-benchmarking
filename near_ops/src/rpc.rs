@@ -1,3 +1,4 @@
+use log::warn;
 use near_crypto::{InMemorySigner, PublicKey, Signer};
 use near_jsonrpc_client::{
     methods::{
@@ -11,10 +12,12 @@ use near_primitives::{
     transaction::Transaction,
     types::{AccountId, BlockReference, Finality},
     views::{
-        AccessKeyView, BlockView, ExecutionStatusView, FinalExecutionStatus, QueryRequest,
-        TxExecutionStatus,
+        AccessKeyView, BlockView, ExecutionStatusView, FinalExecutionOutcomeView,
+        FinalExecutionStatus, QueryRequest, TxExecutionStatus,
     },
 };
+
+use crate::rpc_response_handler::ResponseCheckSeverity;
 
 pub fn new_request(
     transaction: Transaction,
@@ -88,6 +91,89 @@ pub fn assert_transaction_and_receipts_success(response: &RpcTransactionResponse
             ExecutionStatusView::SuccessValue(_) => {}
             ExecutionStatusView::SuccessReceiptId(_) => {}
         }
+    }
+}
+
+/// Checks the rpc request to send a transaction succeeded. Depending on `wait_until`, the status
+/// of receipts might be checked too. Logs warnings on request failures.
+///
+/// For now, only handling empty transaction success values and not inspecting success values of
+/// receipts.
+///
+/// # Panics
+pub fn check_send_tx_response(
+    response: RpcTransactionResponse,
+    wait_until: TxExecutionStatus,
+    response_check_severity: ResponseCheckSeverity,
+) {
+    if response.final_execution_status != wait_until {
+        let msg = format!(
+            "got response.final_execution_status {:#?}, expected {:#?}",
+            response.final_execution_status, wait_until
+        );
+        warn_or_panic(&msg, response_check_severity);
+    }
+
+    let outcome = response
+        .final_execution_outcome
+        .expect("response should have an outcome")
+        .into_outcome();
+    match wait_until {
+        TxExecutionStatus::None => {
+            check_outcome_status(
+                &outcome,
+                FinalExecutionStatus::NotStarted,
+                response_check_severity,
+            );
+        }
+        TxExecutionStatus::Included => unimplemented!("not sending requests with this wait_until"),
+        TxExecutionStatus::ExecutedOptimistic => {
+            // For now, only sending transactions that expect an empty success value.
+            check_outcome_status(
+                &outcome,
+                FinalExecutionStatus::SuccessValue(vec![]),
+                response_check_severity,
+            );
+        }
+        TxExecutionStatus::IncludedFinal => {
+            unimplemented!("not sending requests with this wait_until")
+        }
+        TxExecutionStatus::Executed => unimplemented!("not sending requests with this wait_until"),
+        TxExecutionStatus::Final => unimplemented!("not sending requests with this wait_until"),
+    }
+
+    for receipt_outcome in outcome.receipts_outcome.iter() {
+        match &receipt_outcome.outcome.status {
+            ExecutionStatusView::Unknown => {
+                warn_or_panic("unknown receipt outcome", response_check_severity)
+            }
+            ExecutionStatusView::Failure(err) => {
+                warn_or_panic(&format!("receipt failed: {err}"), response_check_severity)
+            }
+            ExecutionStatusView::SuccessValue(_) => {}
+            ExecutionStatusView::SuccessReceiptId(_) => {}
+        }
+    }
+}
+
+fn check_outcome_status(
+    outcome: &FinalExecutionOutcomeView,
+    expected_status: FinalExecutionStatus,
+    response_check_severity: ResponseCheckSeverity,
+) {
+    if outcome.status != expected_status {
+        let msg = format!(
+            "got outcome.status {:#?}, expected {:#?}",
+            outcome.status, expected_status
+        );
+        warn_or_panic(&msg, response_check_severity);
+    }
+}
+
+fn warn_or_panic(msg: &str, response_check_severity: ResponseCheckSeverity) {
+    match response_check_severity {
+        ResponseCheckSeverity::Log => warn!("{msg}"),
+        ResponseCheckSeverity::Assert => panic!("{msg}"),
     }
 }
 

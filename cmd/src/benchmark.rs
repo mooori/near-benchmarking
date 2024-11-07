@@ -8,7 +8,7 @@ use near_jsonrpc_client::methods::send_tx::RpcSendTransactionRequest;
 use near_jsonrpc_client::JsonRpcClient;
 use near_ops::account::accounts_from_dir;
 use near_ops::block_service::BlockService;
-use near_ops::rpc_response_handler::RpcResponseHandler;
+use near_ops::rpc_response_handler::{ResponseCheckSeverity, RpcResponseHandler};
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::views::TxExecutionStatus;
 use rand::distributions::{Distribution, Uniform};
@@ -51,12 +51,16 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
     // TODO find reasonable buffer size.
     let (channel_tx, channel_rx) = mpsc::channel(3500);
 
-    let wait_until = TxExecutionStatus::ExecutedOptimistic;
+    let wait_until = TxExecutionStatus::None;
     let wait_until_channel = wait_until.clone();
     let num_expected_responses = args.num_transfers;
     let response_handler_task = tokio::task::spawn(async move {
-        let mut rpc_response_handler =
-            RpcResponseHandler::new(channel_rx, wait_until_channel, num_expected_responses);
+        let mut rpc_response_handler = RpcResponseHandler::new(
+            channel_rx,
+            wait_until_channel,
+            ResponseCheckSeverity::Log,
+            num_expected_responses,
+        );
         rpc_response_handler.handle_all_responses().await;
     });
 

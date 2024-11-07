@@ -8,26 +8,37 @@ use near_jsonrpc_client::{
 use near_primitives::views::TxExecutionStatus;
 use tokio::sync::mpsc::Receiver;
 
-use crate::rpc::assert_transaction_and_receipts_success;
+use crate::rpc::check_send_tx_response;
 
 pub type RpcCallResult = Result<RpcTransactionResponse, JsonRpcError<RpcTransactionError>>;
 
 pub struct RpcResponseHandler {
     receiver: Receiver<RpcCallResult>,
-    /// The `wait_until` value of the transactions whose responses are awaited.
+    /// The `wait_until` value passed to transactions.
     wait_until: TxExecutionStatus,
+    response_check_severity: ResponseCheckSeverity,
     num_expected_responses: u64,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum ResponseCheckSeverity {
+    /// An unexpected response or transaction failure will be logged as warning.
+    Log,
+    /// An unexpected response or transaction failure will raise a panic.
+    Assert,
 }
 
 impl RpcResponseHandler {
     pub fn new(
         receiver: Receiver<RpcCallResult>,
         wait_until: TxExecutionStatus,
+        response_check_severity: ResponseCheckSeverity,
         num_expected_responses: u64,
     ) -> Self {
         Self {
             receiver,
             wait_until,
+            response_check_severity,
             num_expected_responses,
         }
     }
@@ -55,7 +66,11 @@ impl RpcResponseHandler {
             }
 
             let rpc_response = response.expect("rpc call should succeed");
-            assert_transaction_and_receipts_success(&rpc_response);
+            check_send_tx_response(
+                rpc_response,
+                self.wait_until.clone(),
+                self.response_check_severity,
+            );
         }
 
         if let Some(timer) = timer {
