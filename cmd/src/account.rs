@@ -7,11 +7,12 @@ use log::info;
 use near_crypto::{InMemorySigner, KeyType, SecretKey};
 use near_jsonrpc_client::JsonRpcClient;
 use near_ops::block_service::BlockService;
-use near_ops::rpc_response_handler::RpcResponseHandler;
+use near_ops::rpc_response_handler::{ResponseCheckSeverity, RpcResponseHandler};
 use near_ops::{
     account::{new_create_subaccount_actions, Account},
     rpc::{new_request, view_access_key},
 };
+use near_primitives::views::TxExecutionStatus;
 use near_primitives::{
     transaction::{Transaction, TransactionV0},
     types::AccountId,
@@ -63,9 +64,16 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
     // TODO find reasonable buffer size.
     let (channel_tx, channel_rx) = mpsc::channel(1200);
 
+    let wait_until = TxExecutionStatus::ExecutedOptimistic;
+    let wait_until_channel = wait_until.clone();
     let num_expected_responses = args.num_sub_accounts;
     let response_handler_task = tokio::task::spawn(async move {
-        let mut rpc_response_handler = RpcResponseHandler::new(channel_rx, num_expected_responses);
+        let mut rpc_response_handler = RpcResponseHandler::new(
+            channel_rx,
+            wait_until_channel,
+            ResponseCheckSeverity::Assert,
+            num_expected_responses,
+        );
         rpc_response_handler.handle_all_responses().await;
     });
 
@@ -83,7 +91,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
                 args.deposit,
             ),
         });
-        let request = new_request(tx, signer.clone());
+        let request = new_request(tx, wait_until.clone(), signer.clone());
 
         interval.tick().await;
         let client = client.clone();
