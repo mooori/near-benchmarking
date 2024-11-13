@@ -8,7 +8,7 @@ use near_jsonrpc_client::{
 use near_primitives::views::TxExecutionStatus;
 use tokio::sync::mpsc::Receiver;
 
-use crate::rpc::check_send_tx_response;
+use crate::rpc::check_tx_response;
 
 pub type RpcCallResult = Result<RpcTransactionResponse, JsonRpcError<RpcTransactionError>>;
 
@@ -66,7 +66,7 @@ impl RpcResponseHandler {
             }
 
             let rpc_response = response.expect("rpc call should succeed");
-            check_send_tx_response(
+            check_tx_response(
                 rpc_response,
                 self.wait_until.clone(),
                 self.response_check_severity,

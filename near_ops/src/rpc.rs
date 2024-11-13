@@ -1,3 +1,5 @@
+use std::{collections::HashMap, sync::LazyLock};
+
 use log::warn;
 use near_crypto::{InMemorySigner, PublicKey, Signer};
 use near_jsonrpc_client::{
@@ -94,6 +96,18 @@ pub fn assert_transaction_and_receipts_success(response: &RpcTransactionResponse
     }
 }
 
+/// Maps `TxExecutionStatus` to integers s.t. higher numbers represent a higher finality.
+fn tx_execution_level(status: &TxExecutionStatus) -> u8 {
+    match status {
+        TxExecutionStatus::None => 0,
+        TxExecutionStatus::Included => 1,
+        TxExecutionStatus::ExecutedOptimistic => 2,
+        TxExecutionStatus::IncludedFinal => 3,
+        TxExecutionStatus::Executed => 4,
+        TxExecutionStatus::Final => 5,
+    }
+}
+
 /// Checks the rpc request to send a transaction succeeded. Depending on `wait_until`, the status
 /// of receipts might be checked too. Logs warnings on request failures.
 ///
@@ -101,28 +115,33 @@ pub fn assert_transaction_and_receipts_success(response: &RpcTransactionResponse
 /// receipts.
 ///
 /// # Panics
-pub fn check_send_tx_response(
+pub fn check_tx_response(
     response: RpcTransactionResponse,
     wait_until: TxExecutionStatus,
     response_check_severity: ResponseCheckSeverity,
 ) {
-    if response.final_execution_status != wait_until {
+    if tx_execution_level(&response.final_execution_status) < tx_execution_level(&wait_until) {
         let msg = format!(
-            "got response.final_execution_status {:#?}, expected {:#?}",
+            "got final execution status {:#?}, expected at least {:#?}",
             response.final_execution_status, wait_until
         );
         warn_or_panic(&msg, response_check_severity);
     }
 
     // Check the outcome, if applicable.
-    match wait_until {
+    match response.final_execution_status {
         TxExecutionStatus::None => {
             // The response to a transaction with `wait_until: None` contains no outcome.
             // If that ever changes, the outcome must be checked, hence the assert.
             assert!(response.final_execution_outcome.is_none());
         }
-        TxExecutionStatus::Included => unimplemented!("not sending requests with this wait_until"),
-        TxExecutionStatus::ExecutedOptimistic => {
+        TxExecutionStatus::Included => {
+            unimplemented!("given how transactions are sent, this status is not yet returned")
+        }
+        TxExecutionStatus::ExecutedOptimistic
+        | TxExecutionStatus::IncludedFinal
+        | TxExecutionStatus::Executed
+        | TxExecutionStatus::Final => {
             // For now, only sending transactions that expect an empty success value.
             check_outcome(
                 response,
@@ -130,11 +149,6 @@ pub fn check_send_tx_response(
                 response_check_severity,
             );
         }
-        TxExecutionStatus::IncludedFinal => {
-            unimplemented!("not sending requests with this wait_until")
-        }
-        TxExecutionStatus::Executed => unimplemented!("not sending requests with this wait_until"),
-        TxExecutionStatus::Final => unimplemented!("not sending requests with this wait_until"),
     }
 }
 
