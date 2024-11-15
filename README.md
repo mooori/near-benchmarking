@@ -12,6 +12,8 @@ Roughly the steps to benchmark native token transfers are:
 2. Execute `just csa` to create accounts.
 3. Execute `just bmnf` to run the benchmark.
 
+Note that OS default limits on the number of file descriptors might be too tight. The limit can be queried with `ulimit -n` and it should be larger than the value passed to `--channel-buffer-size`. Roughly speaking because each connection to the RPC requires a file descriptor. The limit can be increased with `ulimit -n <number>`. Exceeding the limit results in `Too many open file` errors.
+
 # Unlimited config
 
 - Modify `genesis.json`:
