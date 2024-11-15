@@ -25,6 +25,7 @@ pub struct BenchmarkNativeTransferArgs {
     #[arg(long)]
     pub num_transfers: u64,
     /// Acts as upper bound on the number of concurrently open RPC requests.
+    #[arg(long)]
     pub channel_buffer_size: usize,
     /// After each tick (in microseconds) a transaction is sent. If the hardware cannot keep up with
     /// that or if the NEAR node is congested, transactions are sent at a slower rate.
