@@ -31,12 +31,26 @@ pub struct CreateSubAccountsArgs {
     // TODO remove this field and get nonce from rpc
     #[arg(long, default_value_t = 1)]
     pub nonce: u64,
+    /// Optional prefix for sub account names to avoid generating accounts that already exist on
+    /// subsequent invocations.
+    ///
+    /// # Example
+    ///
+    /// The name of the `i`-th sub account will be:
+    ///
+    /// - `user_<i>.<signer_account_id>` if `sub_account_prefix == None`
+    /// - `a_user_<i>.<signer_account_id>` if `sub_account_prefix == Some("a")`
+    #[arg(long)]
+    pub sub_account_prefix: Option<String>,
     /// Number of sub accounts to create.
     #[arg(long)]
     pub num_sub_accounts: u64,
     /// Amount to deposit with each sub-account.
     #[arg(long)]
     pub deposit: u128,
+    #[arg(long)]
+    /// Acts as upper bound on the number of concurrently open RPC requests.
+    pub channel_buffer_size: usize,
     /// After each tick (in microseconds) a transaction is sent. If the hardware cannot keep up with
     /// that or if the NEAR node is congested, transactions are sent at a slower rate.
     #[arg(long)]
@@ -62,7 +76,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
     // Before a request is made, a permit to send into the channel is awaited. Hence buffer size
     // limits the number of outstanding requests. This helps to avoid congestion.
     // TODO find reasonable buffer size.
-    let (channel_tx, channel_rx) = mpsc::channel(1200);
+    let (channel_tx, channel_rx) = mpsc::channel(args.channel_buffer_size);
 
     let wait_until = TxExecutionStatus::ExecutedOptimistic;
     let wait_until_channel = wait_until.clone();
@@ -79,7 +93,14 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
 
     for i in 0..args.num_sub_accounts {
         let sub_account_key = SecretKey::from_random(KeyType::ED25519);
-        let sub_account_id: AccountId = format!("user_{i}_a2.{}", signer.account_id).parse()?;
+        let sub_account_id: AccountId = {
+            let subname = if let Some(prefix) = &args.sub_account_prefix {
+                format!("{prefix}_user_{i}")
+            } else {
+                format!("user_{i}")
+            };
+            format!("{subname}.{}", signer.account_id).parse()?
+        };
         let tx = Transaction::V0(TransactionV0 {
             signer_id: signer.account_id.clone(),
             public_key: signer.public_key().clone(),

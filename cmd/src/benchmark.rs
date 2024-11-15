@@ -24,6 +24,9 @@ pub struct BenchmarkNativeTransferArgs {
     pub user_data_dir: PathBuf,
     #[arg(long)]
     pub num_transfers: u64,
+    /// Acts as upper bound on the number of concurrently open RPC requests.
+    #[arg(long)]
+    pub channel_buffer_size: usize,
     /// After each tick (in microseconds) a transaction is sent. If the hardware cannot keep up with
     /// that or if the NEAR node is congested, transactions are sent at a slower rate.
     #[arg(long)]
@@ -49,7 +52,7 @@ pub async fn benchmark_native_transfers(args: &BenchmarkNativeTransferArgs) -> a
     // Before a request is made, a permit to send into the channel is awaited. Hence buffer size
     // limits the number of outstanding requests. This helps to avoid congestion.
     // TODO find reasonable buffer size.
-    let (channel_tx, channel_rx) = mpsc::channel(3500);
+    let (channel_tx, channel_rx) = mpsc::channel(args.channel_buffer_size);
 
     let wait_until = TxExecutionStatus::None;
     let wait_until_channel = wait_until.clone();
