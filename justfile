@@ -63,8 +63,9 @@ bmnf:
     cargo run -p cmd --release -- benchmark-native-transfers \
         --rpc-url {{rpc_url}} \
         --user-data-dir user-data/ \
-        --num-transfers 20000 \
-        --interval-duration-micros 400 \
+        --num-transfers 500000 \
+        --channel-buffer-size 2500 \
+        --interval-duration-micros 200 \
         --amount 1
 
 view_account id:
@@ -88,3 +89,10 @@ view_protocol_config:
       params:='{ \
         "finality": "final" \
       }'
+
+send_dummy_tx wait_until:
+    http post {{rpc_url}} jsonrpc=2.0 id=dontcare method=send_tx \
+        params:='{ \
+          "signed_tx_base64": "DgAAAHNlbmRlci50ZXN0bmV0AOrmAai64SZOv9e/naX4W15pJx0GAap35wTT1T/DwcbbDwAAAAAAAAAQAAAAcmVjZWl2ZXIudGVzdG5ldNMnL7URB1cxPOu3G8jTqlEwlcasagIbKlAJlF5ywVFLAQAAAAMAAACh7czOG8LTAAAAAAAAAGQcOG03xVSFQFjoagOb4NBBqWhERnnz45LY4+52JgZhm1iQKz7qAdPByrGFDQhQ2Mfga8RlbysuQ8D8LlA6bQE=", \
+          "wait_until": "{{wait_until}}" \
+        }'

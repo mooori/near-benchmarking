@@ -48,6 +48,9 @@ pub struct CreateSubAccountsArgs {
     /// Amount to deposit with each sub-account.
     #[arg(long)]
     pub deposit: u128,
+    #[arg(long)]
+    /// Acts as upper bound on the number of concurrently open RPC requests.
+    pub channel_buffer_size: usize,
     /// After each tick (in microseconds) a transaction is sent. If the hardware cannot keep up with
     /// that or if the NEAR node is congested, transactions are sent at a slower rate.
     #[arg(long)]
@@ -73,7 +76,7 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
     // Before a request is made, a permit to send into the channel is awaited. Hence buffer size
     // limits the number of outstanding requests. This helps to avoid congestion.
     // TODO find reasonable buffer size.
-    let (channel_tx, channel_rx) = mpsc::channel(1200);
+    let (channel_tx, channel_rx) = mpsc::channel(args.channel_buffer_size);
 
     let wait_until = TxExecutionStatus::ExecutedOptimistic;
     let wait_until_channel = wait_until.clone();
