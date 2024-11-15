@@ -26,8 +26,10 @@ csa:
         --rpc-url {{rpc_url}} \
         --signer-key-path {{near_localnet_home}}/validator_key.json \
         --nonce 1 \
+        --sub-account-prefix 'a' \
         --num-sub-accounts 10000 \
         --deposit 953060601875000000010000 \
+        --channel-buffer-size 1200 \
         --interval-duration-micros 1500 \
         --user-data-dir user-data
 
