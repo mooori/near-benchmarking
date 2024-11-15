@@ -140,11 +140,16 @@ pub async fn create_sub_accounts(args: &CreateSubAccountsArgs) -> anyhow::Result
         .await
         .expect("response handler tasks should succeed");
 
+    info!("Querying nonces of newly created sub accounts.");
+
     // Nonces of new access keys are set by nearcore: https://github.com/near/nearcore/pull/4064
     // Query them from the rpc to write `Accounts` with valid nonces to disk.
     // TODO use `JoinSet`, e.g. by storing accounts in map instead of vec.
     let mut get_access_key_tasks = Vec::with_capacity(sub_accounts.len());
+    // Use an interval to avoid overwhelming the node with requests.
+    let mut interval = time::interval(Duration::from_micros(150));
     for account in sub_accounts.clone().into_iter() {
+        interval.tick().await;
         let client = client.clone();
         get_access_key_tasks.push(tokio::spawn(async move {
             view_access_key(&client, account.id.clone(), account.public_key.clone()).await
