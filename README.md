@@ -22,5 +22,9 @@ Note that OS default limits on the number of file descriptors might be too tight
   - increase `gas_limit`
 - Modify `config.json`
   - set `"load_mem_tries_for_tracked_shards": true,`
-  - maybe increase `"produce_chunk_add_transactions_time_limit"`
+  - increase `"produce_chunk_add_transactions_time_limit"`
+  - increase `view_client_threads`
   - TODO check if `config` adjustments can be done as part of `benchmarknet` modifications
+- Code changes
+  - Ensure [`benchmarknet` adjustments](https://github.com/near/nearcore/blob/1324fe938cd840de99a4eb5ff57a301fad085d1a/core/parameters/src/config_store.rs#L147) are up to date.
+  - Maybe increase the number of RPC workers [here](https://near.zulipchat.com/#narrow/channel/308695-nearone.2Fprivate/topic/native.20token.20transfer.20benchmark/near/485901127)
